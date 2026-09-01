@@ -179,7 +179,7 @@ export default function App() {
 
       const { data: sess, error: sessErr } = await supabase
         .from("session")
-        .select("*, household(name, kind), session_note(id, signed_at)")
+       .select("*, household(name, kind), session_note!session_note_session_id_fkey(id, signed_at)")
         .order("starts_at", { ascending: true });
       if (sessErr) throw sessErr;
 
