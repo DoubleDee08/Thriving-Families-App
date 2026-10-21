@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Your Goals and Homework — The Thriving Families</title>
+<style>
+  body{margin:0;background:#F6F2EA;color:#241E19;font-family:Karla,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:640px;margin:0 auto;padding:28px 18px 60px}
+  h1{font-family:Georgia,serif;font-weight:400;font-size:30px;margin:0 0 6px}
+  .sub{color:#6B5D52;font-size:14.5px;line-height:1.6;margin:0 0 22px}
+  .card{background:#FFFDF9;border:1px solid #E4DBCE;border-radius:12px;padding:16px 18px;margin-bottom:12px}
+  .card.done{opacity:.78}
+  .meta{font-size:12.5px;color:#8A7A6B;margin-bottom:6px}
+  .desc{font-size:16px;line-height:1.55;margin-bottom:12px}
+  label.tick{display:flex;gap:10px;align-items:center;font-size:15px;margin-bottom:10px;cursor:pointer}
+  input[type=checkbox]{width:20px;height:20px}
+  textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #DFD5C6;border-radius:8px;font:inherit;font-size:14.5px;resize:vertical}
+  button{margin-top:10px;background:#A65A3A;color:#fff;border:none;border-radius:8px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.55}
+  .saved{color:#4E6047;font-size:13px;margin-left:10px}
+  .h{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8A7A6B;font-weight:700;margin:22px 0 10px}
+  .goalnew{background:#FBF7F0}
+  input[type=text]{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #DFD5C6;border-radius:8px;font:inherit;font-size:14.5px;margin-bottom:8px}
+  .lbl{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#8A7A6B;font-weight:700;margin:6px 0 4px}
+  .pill{display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;padding:3px 8px;border-radius:5px;background:#F6EDD3;color:#8A6A1F;margin-bottom:8px}
+  .pill.reached{background:#E6EBE1;color:#4E6047}
+  .msg{text-align:center;padding:60px 10px;color:#6B5D52;line-height:1.7}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="wrap" id="app"><div class="msg">Loading…</div></div>
+<script>
+const TOKEN = new URLSearchParams(location.search).get("t");
+const sb = window.supabase.createClient("https://kjtgvxcuimjlwwiiholm.supabase.co","sb_publishable_mIq__c7pr2ra2UqACInrtQ_qJeKNco_");
+const app = document.getElementById("app");
+const esc = t => String(t==null?"":t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function gate(title, body){ app.innerHTML = '<div class="msg"><h1>'+title+'</h1><p>'+body+'</p></div>'; }
+
+async function load(){
+  if(!TOKEN){ return gate("This link isn’t working","Please check that you copied the whole link, or ask your practitioner for a new one."); }
+  try{
+    const { data, error } = await sb.rpc("get_homework",{ p_token: TOKEN });
+    if(error) throw error;
+    if(!data || data.status==="invalid") return gate("This link isn’t working","Please check that you copied the whole link, or ask your practitioner for a new one.");
+    if(data.status==="expired") return gate("This link has expired","Please ask your practitioner for a fresh link.");
+    render(data.items||[], data.goals||[]);
+  }catch(e){ gate("We couldn’t reach the server","Please check your internet connection and refresh this page."); }
+}
+
+function card(h){
+  return '<div class="card'+(h.client_done?' done':'')+'" id="c-'+h.id+'">'
+   +'<div class="meta">'+esc(h.program)+(h.session_number?' · Session '+h.session_number:'')+(h.due_on?' · Due '+esc(h.due_on):'')+'</div>'
+   +'<div class="desc">'+esc(h.description)+'</div>'
+   +'<label class="tick"><input type="checkbox" '+(h.client_done?'checked':'')+' id="t-'+h.id+'"> I’ve done this</label>'
+   +'<textarea rows="2" id="n-'+h.id+'" placeholder="How did it go? (optional)">'+esc(h.client_note||"")+'</textarea>'
+   +'<button onclick="saveItem(\''+h.id+'\')" id="b-'+h.id+'">Save</button><span class="saved" id="s-'+h.id+'"></span>'
+   +'</div>';
+}
+const STATUS_TXT={active:"In progress",shifting:"Shifting",reached:"Reached",on_hold:"On hold"};
+function goalCard(g){
+  const locked = g.status==="reached";
+  return '<div class="card" id="g-'+g.id+'">'
+   +'<span class="pill '+(locked?'reached':'')+'">'+(STATUS_TXT[g.status]||g.status)+'</span>'
+   +(g.client_name?'<div class="meta">'+esc(g.client_name)+'</div>':'')
+   +(locked
+     ? '<div class="desc">'+esc(g.statement)+'</div>'
+     : '<div class="lbl">My goal</div><textarea rows="2" id="gs-'+g.id+'">'+esc(g.statement)+'</textarea>'
+      +'<div class="lbl">Why it matters to me</div><textarea rows="2" id="gw-'+g.id+'">'+esc(g.why_it_matters||"")+'</textarea>'
+      +'<div class="lbl">How we\u2019ll know it\u2019s happening</div><textarea rows="2" id="gk-'+g.id+'">'+esc(g.how_we_will_know||"")+'</textarea>'
+      +'<button onclick="saveGoal(\''+g.id+'\')" id="gb-'+g.id+'">Save changes</button><span class="saved" id="gm-'+g.id+'"></span>')
+   +'</div>';
+}
+function newGoalCard(){
+  return '<div class="card goalnew"><div class="lbl">Your name (so your goals are easy to tell apart)</div><input type="text" id="gn-new" placeholder="First name">'
+   +'<div class="lbl">What do you want to be different?</div><textarea rows="2" id="gs-new" placeholder="In your own words"></textarea>'
+   +'<div class="lbl">Why it matters to you (optional)</div><textarea rows="2" id="gw-new"></textarea>'
+   +'<div class="lbl">How will you know it\u2019s happening? (optional)</div><textarea rows="2" id="gk-new"></textarea>'
+   +'<button onclick="saveGoal(null)" id="gb-new">Add my goal</button><span class="saved" id="gm-new"></span></div>';
+}
+function render(items, goals){
+  window.__name = window.__name || "";
+  let h='<h1>Your goals and homework</h1><p class="sub">This page is yours. Write what you want to see change in your family, in your own words, and keep track of your homework. Your practitioner will go over it with you.</p>';
+  h+='<div class="h">Your goals</div>'+goals.map(goalCard).join('')+newGoalCard();
+  h+='<div class="h">Homework</div>';
+  if(!items.length){ h+='<p class="sub">Nothing has been assigned yet. After your next session, it will appear here.</p>'; }
+  else{
+    const open = items.filter(i=>!i.client_done), done = items.filter(i=>i.client_done);
+    h+=(open.length?'<div class="lbl" style="margin-top:0">To do</div>'+open.map(card).join(''):'')+(done.length?'<div class="lbl">Done</div>'+done.map(card).join(''):'');
+  }
+  app.innerHTML=h;
+}
+async function saveGoal(id){
+  const k=id||"new", b=document.getElementById("gb-"+k), m=document.getElementById("gm-"+k);
+  const statement=document.getElementById("gs-"+k).value.trim();
+  if(!statement){ m.style.color="#9A3B2A"; m.textContent="Please write your goal first."; return; }
+  b.disabled=true; m.textContent="";
+  try{
+    const nameEl=document.getElementById("gn-new");
+    const { data, error } = await sb.rpc("client_save_goal",{ p_token:TOKEN, p_id:id, p_statement:statement,
+      p_why:document.getElementById("gw-"+k).value||null, p_know:document.getElementById("gk-"+k).value||null,
+      p_name: (id===null&&nameEl)?nameEl.value:null });
+    if(error||data!==true) throw error||new Error("no");
+    if(id===null){ load(); return; }
+    m.style.color="#4E6047"; m.textContent="Saved \u2713";
+  }catch(e){ m.style.color="#9A3B2A"; m.textContent="Couldn\u2019t save \u2014 please try again."; }
+  b.disabled=false;
+}
+async function saveItem(id){
+  const b=document.getElementById("b-"+id), s=document.getElementById("s-"+id);
+  b.disabled=true; s.textContent="";
+  try{
+    const { data, error } = await sb.rpc("client_update_homework",{ p_token:TOKEN, p_id:id, p_done:document.getElementById("t-"+id).checked, p_note:document.getElementById("n-"+id).value||null });
+    if(error||data!==true) throw error||new Error("no");
+    s.textContent="Saved ✓";
+  }catch(e){ s.style.color="#9A3B2A"; s.textContent="Couldn’t save — please try again."; }
+  b.disabled=false;
+}
+load();
+</script>
+</body>
+</html>
