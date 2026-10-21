@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Your Homework — The Thriving Families</title>
+<style>
+  body{margin:0;background:#F6F2EA;color:#241E19;font-family:Karla,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:640px;margin:0 auto;padding:28px 18px 60px}
+  h1{font-family:Georgia,serif;font-weight:400;font-size:30px;margin:0 0 6px}
+  .sub{color:#6B5D52;font-size:14.5px;line-height:1.6;margin:0 0 22px}
+  .card{background:#FFFDF9;border:1px solid #E4DBCE;border-radius:12px;padding:16px 18px;margin-bottom:12px}
+  .card.done{opacity:.78}
+  .meta{font-size:12.5px;color:#8A7A6B;margin-bottom:6px}
+  .desc{font-size:16px;line-height:1.55;margin-bottom:12px}
+  label.tick{display:flex;gap:10px;align-items:center;font-size:15px;margin-bottom:10px;cursor:pointer}
+  input[type=checkbox]{width:20px;height:20px}
+  textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #DFD5C6;border-radius:8px;font:inherit;font-size:14.5px;resize:vertical}
+  button{margin-top:10px;background:#A65A3A;color:#fff;border:none;border-radius:8px;padding:10px 18px;font:inherit;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.55}
+  .saved{color:#4E6047;font-size:13px;margin-left:10px}
+  .h{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#8A7A6B;font-weight:700;margin:22px 0 10px}
+  .msg{text-align:center;padding:60px 10px;color:#6B5D52;line-height:1.7}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+<div class="wrap" id="app"><div class="msg">Loading…</div></div>
+<script>
+const TOKEN = new URLSearchParams(location.search).get("t");
+const sb = window.supabase.createClient("https://kjtgvxcuimjlwwiiholm.supabase.co","sb_publishable_mIq__c7pr2ra2UqACInrtQ_qJeKNco_");
+const app = document.getElementById("app");
+const esc = t => String(t==null?"":t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+function gate(title, body){ app.innerHTML = '<div class="msg"><h1>'+title+'</h1><p>'+body+'</p></div>'; }
+
+async function load(){
+  if(!TOKEN){ return gate("This link isn’t working","Please check that you copied the whole link, or ask your practitioner for a new one."); }
+  try{
+    const { data, error } = await sb.rpc("get_homework",{ p_token: TOKEN });
+    if(error) throw error;
+    if(!data || data.status==="invalid") return gate("This link isn’t working","Please check that you copied the whole link, or ask your practitioner for a new one.");
+    if(data.status==="expired") return gate("This link has expired","Please ask your practitioner for a fresh link.");
+    render(data.items||[]);
+  }catch(e){ gate("We couldn’t reach the server","Please check your internet connection and refresh this page."); }
+}
+
+function card(h){
+  return '<div class="card'+(h.client_done?' done':'')+'" id="c-'+h.id+'">'
+   +'<div class="meta">'+esc(h.program)+(h.session_number?' · Session '+h.session_number:'')+(h.due_on?' · Due '+esc(h.due_on):'')+'</div>'
+   +'<div class="desc">'+esc(h.description)+'</div>'
+   +'<label class="tick"><input type="checkbox" '+(h.client_done?'checked':'')+' id="t-'+h.id+'"> I’ve done this</label>'
+   +'<textarea rows="2" id="n-'+h.id+'" placeholder="How did it go? (optional)">'+esc(h.client_note||"")+'</textarea>'
+   +'<button onclick="saveItem(\''+h.id+'\')" id="b-'+h.id+'">Save</button><span class="saved" id="s-'+h.id+'"></span>'
+   +'</div>';
+}
+function render(items){
+  if(!items.length){ return app.innerHTML='<h1>Your homework</h1><p class="sub">Nothing has been assigned yet. After your next session, it will appear here.</p>'; }
+  const open = items.filter(i=>!i.client_done), done = items.filter(i=>i.client_done);
+  app.innerHTML = '<h1>Your homework</h1><p class="sub">Tick each item when you’ve done it and add a note if you like. Your practitioner will go over it with you at your next session.</p>'
+    + (open.length?'<div class="h">To do</div>'+open.map(card).join(''):'')
+    + (done.length?'<div class="h">Done</div>'+done.map(card).join(''):'');
+}
+async function saveItem(id){
+  const b=document.getElementById("b-"+id), s=document.getElementById("s-"+id);
+  b.disabled=true; s.textContent="";
+  try{
+    const { data, error } = await sb.rpc("client_update_homework",{ p_token:TOKEN, p_id:id, p_done:document.getElementById("t-"+id).checked, p_note:document.getElementById("n-"+id).value||null });
+    if(error||data!==true) throw error||new Error("no");
+    s.textContent="Saved ✓";
+  }catch(e){ s.style.color="#9A3B2A"; s.textContent="Couldn’t save — please try again."; }
+  b.disabled=false;
+}
+load();
+</script>
+</body>
+</html>
